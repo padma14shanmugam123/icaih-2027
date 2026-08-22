@@ -172,29 +172,25 @@
     <div class="top-announcement-track">
       <div class="top-announcement-content">
         <span class="dot">•</span>
+        <span>Free Registration for Students, Delegates, Industry Experts, Startup Founders, and Research Scholars</span>
+        <span class="dot">•</span>
         <span>Research Paper Submission is FREE — Last Date to Submit: 12 October 2027</span>
         <span class="dot">•</span>
         <span>Research Paper Awards: 1st Prize ₹3,00,000 · 2nd Prize ₹2,00,000 · 3rd Prize ₹1,00,000 + Certificate</span>
         <span class="dot">•</span>
         <span>Participation Certificate: Compulsory for every registered participant</span>
-        <span class="dot">•</span>
-        <span>Sponsorship, Exhibitor &amp; Stall Booking: Fees applicable — to be announced soon</span>
-        <span class="dot">•</span>
-        <span>Student Bulk Booking Offer: Special discounts are available only for student groups</span>
         <span class="dot">•</span>
         <span>ICAIH 2027 | International Conference on Artificial Intelligence in Healthcare</span>
       </div>
       <div class="top-announcement-content" aria-hidden="true">
         <span class="dot">•</span>
+        <span>Free Registration for Students, Delegates, Industry Experts, Startup Founders, and Research Scholars</span>
+        <span class="dot">•</span>
         <span>Research Paper Submission is FREE — Last Date to Submit: 12 October 2027</span>
         <span class="dot">•</span>
         <span>Research Paper Awards: 1st Prize ₹3,00,000 · 2nd Prize ₹2,00,000 · 3rd Prize ₹1,00,000 + Certificate</span>
         <span class="dot">•</span>
         <span>Participation Certificate: Compulsory for every registered participant</span>
-        <span class="dot">•</span>
-        <span>Sponsorship, Exhibitor &amp; Stall Booking: Fees applicable — to be announced soon</span>
-        <span class="dot">•</span>
-        <span>Student Bulk Booking Offer: Special discounts are available only for student groups</span>
         <span class="dot">•</span>
         <span>ICAIH 2027 | International Conference on Artificial Intelligence in Healthcare</span>
       </div>
@@ -1005,11 +1001,33 @@
         </div>
         <form class="form-card reveal" id="registrationForm">
           <label><span>Full Name <b class="required-star">*</b></span><input id="registrationName" name="name" type="text" autocomplete="name" required placeholder="Enter your full name"></label>
-          <label><span>Email Address <b class="required-star">*</b></span><input id="registrationEmail" name="email" type="email" autocomplete="email" required
-              placeholder="name@example.com"></label>
-          <label><span>Phone Number <b class="required-star">*</b></span><input id="registrationPhone" name="phone" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10"
-  pattern="[0-9]{10}" data-phone-only required placeholder="Enter 10 digit phone number"
-  title="Please enter exactly 10 digits"></label>
+          <div class="otp-field-group">
+            <label for="registrationEmail"><span>Email Address <b class="required-star">*</b></span></label>
+            <div class="otp-input-row">
+              <input id="registrationEmail" name="email" type="email" autocomplete="email" required placeholder="name@example.com">
+              <button class="btn secondary otp-action-btn" id="sendEmailOtpBtn" type="button">Send OTP</button>
+            </div>
+            <div class="otp-verification-row" id="emailOtpRow" hidden>
+              <input id="registrationEmailOtp" name="emailOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Enter 6-digit email OTP">
+              <button class="btn primary otp-action-btn" id="verifyEmailOtpBtn" type="button">Verify OTP</button>
+            </div>
+            <small class="otp-status" id="emailOtpStatus" aria-live="polite"></small>
+          </div>
+
+          <div class="otp-field-group">
+            <label for="registrationPhone"><span>Phone Number <b class="required-star">*</b></span></label>
+            <div class="otp-input-row">
+              <input id="registrationPhone" name="phone" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10"
+                pattern="[0-9]{10}" data-phone-only required placeholder="Enter 10 digit phone number"
+                title="Please enter exactly 10 digits">
+              <button class="btn secondary otp-action-btn" id="sendMobileOtpBtn" type="button">Send OTP</button>
+            </div>
+            <div class="otp-verification-row" id="mobileOtpRow" hidden>
+              <input id="registrationMobileOtp" name="mobileOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Enter 6-digit mobile OTP">
+              <button class="btn primary otp-action-btn" id="verifyMobileOtpBtn" type="button">Verify OTP</button>
+            </div>
+            <small class="otp-status" id="mobileOtpStatus" aria-live="polite"></small>
+          </div>
           <label><span>Organization <b class="required-star">*</b></span><input id="registrationOrganization" name="organization" type="text" autocomplete="organization" required
               placeholder="Institution / Company"></label>
           <label><span>Role / Fee Category <b class="required-star">*</b></span><select name="role" id="registrationRole" required>
@@ -1020,7 +1038,6 @@
               <option value="Research Scholar">Research Scholar</option>
               <option value="Online Attendee">Online Attendee</option>
               <option value="TSI Member">TSI Member / Medical Student</option>
-              <option value="Bulk Booking">Student Bulk Booking</option>
             </select></label>
           <label id="tsiMembershipWrapper" style="display:none;"><span>TSI Membership Registration Number <b class="required-star">*</b></span><input name="tsiMembershipNumber" id="tsiMembershipNumber" type="text" placeholder="Enter TSI Membership Number"></label>
           <label><span>Category <b class="required-star">*</b></span><select name="category" id="registrationCategory" required>
@@ -1043,23 +1060,6 @@
               </label>
             </div>
           </section>
-
-          <div class="bulk-booking-box" id="bulkBookingBox" hidden>
-            <label><span>Student Bulk Booking Offer</span><select name="bulkOffer" id="bulkOffer">
-                <option value="1-4">Student Group: 1 to 4 Students - Standard Fee ₹999 Each</option>
-                <option value="5-24">Student Group: 5 to 24 Students - 10% Discount</option>
-                <option value="25-49">Student Group: 25 to 49 Students - 20% Discount</option>
-                <option value="50-plus">Student Group: 50+ Students - 25% Discount</option>
-              </select></label>
-            <label><span>Number of Students</span><input name="studentCount" id="studentCount" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="Enter total students (minimum 1)"></label>
-            <small class="bulk-count-help" id="bulkCountHelp">Enter 1–4 for the standard fee of ₹999 per student, 5–24 for 10%, 25–49 for 20%, or 50+ for 25%. The offer changes automatically.</small>
-          </div>
-
-          <div class="fee-summary-box">
-            <div><span>Selected Fee</span><strong id="selectedFeeText">₹999</strong></div>
-            <small id="selectedFeeNote">Student registration fee</small>
-            <small id="earlyBirdStatus" class="early-bird-status"></small>
-          </div>
 
           <div class="payment-qr-box" id="manualPaymentBox">
             <h3>Secure UPI Payment <b class="required-star">*</b></h3>

@@ -2687,6 +2687,89 @@ blockquote {
   display: none !important;
 }
 
+.otp-field-group {
+  display: grid;
+  gap: 8px;
+}
+
+.otp-input-row,
+.otp-verification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.otp-verification-row[hidden] {
+  display: none !important;
+}
+
+.otp-input-row input,
+.otp-verification-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.form-card .btn.otp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  min-height: 44px;
+  padding: 11px 16px;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #4f8cff, #1468e8) !important;
+  border: 1px solid #3476f7 !important;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 1;
+  visibility: visible;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.22);
+}
+
+.form-card .btn.otp-action-btn:hover {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #3476f7, #075fd5) !important;
+}
+
+.form-card .btn.otp-action-btn:disabled {
+  color: #ffffff !important;
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.otp-status {
+  min-height: 18px;
+  color: #516582;
+  font-size: .8rem;
+  line-height: 1.4;
+}
+
+.otp-status.success {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.otp-status.error {
+  color: #c62828;
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .otp-input-row,
+  .otp-verification-row {
+    grid-template-columns: 1fr;
+  }
+
+  .otp-action-btn {
+    width: 100%;
+  }
+}
+
 .fee-summary-box {
   display: flex;
   flex-direction: column;

@@ -1,3 +1,6 @@
+
+
+
 /* ═══════════════════════════════════════════════════════════════
    ICAIH 2026 – Main JS
    Crowdshaki / Razorpay Dynamic UPI Payment Flow
@@ -122,10 +125,13 @@ const API_BASE = (() => {
   if (
     window.location.protocol === 'file:' ||
     hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.startsWith('192.168.')
+    hostname === '127.0.0.1'
   ) {
-    return `http://${hostname === '127.0.0.1' ? 'localhost' : hostname}:3000`;
+    return 'http://localhost:3000';
+  }
+
+  if (hostname.startsWith('192.168.')) {
+    return `http://${hostname}:3000`;
   }
 
   return '';
@@ -173,6 +179,501 @@ function validatePhoneFields(form, messageId) {
   return true;
 }
 
+/* ── Registration email and mobile OTP verification ── */
+const registrationOtpState = {
+  emailVerified: false,
+  mobileVerified: false,
+  verifiedEmail: '',
+  verifiedMobile: ''
+};
+
+const OTP_ENDPOINTS = {
+  sendEmail: '/api/send-email-otp',
+  verifyEmail: '/api/verify-email-otp',
+  sendMobile: '/api/send-mobile-otp',
+  verifyMobile: '/api/verify-mobile-otp'
+};
+
+function setOtpStatus(statusId, message, type = '') {
+  const status = document.getElementById(statusId);
+  if (!status) return;
+  status.textContent = message;
+  status.className = `otp-status ${type}`.trim();
+}
+
+async function postOtpRequest(endpoint, payload) {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.message || 'OTP request failed. Please try again.');
+  return result;
+}
+
+function startOtpCooldown(button) {
+  let seconds = 30;
+  button.disabled = true;
+  button.textContent = `Resend in ${seconds}s`;
+
+  const timer = window.setInterval(() => {
+    seconds -= 1;
+    if (seconds <= 0) {
+      window.clearInterval(timer);
+      button.disabled = false;
+      button.textContent = 'Resend OTP';
+      return;
+    }
+    button.textContent = `Resend in ${seconds}s`;
+  }, 1000);
+}
+
+async function sendRegistrationEmailOtp() {
+  const emailInput = document.getElementById('registrationEmail');
+  const button = document.getElementById('sendEmailOtpBtn');
+  const email = emailInput?.value.trim().toLowerCase() || '';
+
+  if (!emailInput?.checkValidity() || !email) {
+    emailInput?.reportValidity();
+    setOtpStatus('emailOtpStatus', 'Enter a valid email address first.', 'error');
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Sending...';
+  document.getElementById('emailOtpRow').hidden = false;
+  document.getElementById('registrationEmailOtp').value = '';
+  document.getElementById('registrationEmailOtp').readOnly = false;
+  setOtpStatus('emailOtpStatus', 'Sending OTP to your email...');
+
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.sendEmail, { email });
+    registrationOtpState.emailVerified = false;
+    registrationOtpState.verifiedEmail = '';
+    setOtpStatus('emailOtpStatus', 'OTP sent to your email address.', 'success');
+    startOtpCooldown(button);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Send OTP';
+    setOtpStatus('emailOtpStatus', error.message, 'error');
+  }
+}
+
+async function verifyRegistrationEmailOtp() {
+  const email = document.getElementById('registrationEmail')?.value.trim().toLowerCase() || '';
+  const otpInput = document.getElementById('registrationEmailOtp');
+  const button = document.getElementById('verifyEmailOtpBtn');
+  const otp = otpInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{6}$/.test(otp)) {
+    setOtpStatus('emailOtpStatus', 'Enter the valid 6-digit email OTP.', 'error');
+    otpInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Verifying...';
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.verifyEmail, { email, otp });
+    registrationOtpState.emailVerified = true;
+    registrationOtpState.verifiedEmail = email;
+    otpInput.readOnly = true;
+    setOtpStatus('emailOtpStatus', 'Verified successfully.', 'success');
+    button.textContent = 'Verified';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Verify OTP';
+    setOtpStatus('emailOtpStatus', error.message, 'error');
+  }
+}
+
+async function sendRegistrationMobileOtp() {
+  const phoneInput = document.getElementById('registrationPhone');
+  const button = document.getElementById('sendMobileOtpBtn');
+  const mobile = phoneInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{10}$/.test(mobile)) {
+    setOtpStatus('mobileOtpStatus', 'Enter a valid 10-digit mobile number first.', 'error');
+    phoneInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Sending...';
+  document.getElementById('mobileOtpRow').hidden = false;
+  document.getElementById('registrationMobileOtp').value = '';
+  document.getElementById('registrationMobileOtp').readOnly = false;
+  setOtpStatus('mobileOtpStatus', 'Sending OTP to your mobile number...');
+
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.sendMobile, { mobile });
+    registrationOtpState.mobileVerified = false;
+    registrationOtpState.verifiedMobile = '';
+    setOtpStatus('mobileOtpStatus', 'OTP sent to your mobile number.', 'success');
+    startOtpCooldown(button);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Send OTP';
+    setOtpStatus('mobileOtpStatus', error.message, 'error');
+  }
+}
+
+async function verifyRegistrationMobileOtp() {
+  const mobile = document.getElementById('registrationPhone')?.value.replace(/\D/g, '') || '';
+  const otpInput = document.getElementById('registrationMobileOtp');
+  const button = document.getElementById('verifyMobileOtpBtn');
+  const otp = otpInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{6}$/.test(otp)) {
+    setOtpStatus('mobileOtpStatus', 'Enter the valid 6-digit mobile OTP.', 'error');
+    otpInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Verifying...';
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.verifyMobile, { mobile, otp });
+    registrationOtpState.mobileVerified = true;
+    registrationOtpState.verifiedMobile = mobile;
+    otpInput.readOnly = true;
+    setOtpStatus('mobileOtpStatus', 'Verified successfully.', 'success');
+    button.textContent = 'Verified';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Verify OTP';
+    setOtpStatus('mobileOtpStatus', error.message, 'error');
+  }
+}
+
+function resetRegistrationOtpState() {
+  registrationOtpState.emailVerified = false;
+  registrationOtpState.mobileVerified = false;
+  registrationOtpState.verifiedEmail = '';
+  registrationOtpState.verifiedMobile = '';
+
+  ['emailOtpRow', 'mobileOtpRow'].forEach(id => {
+    const row = document.getElementById(id);
+    if (row) row.hidden = true;
+  });
+  ['registrationEmailOtp', 'registrationMobileOtp'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.value = '';
+      input.readOnly = false;
+    }
+  });
+  [
+    ['sendEmailOtpBtn', 'Send OTP'],
+    ['sendMobileOtpBtn', 'Send OTP'],
+    ['verifyEmailOtpBtn', 'Verify OTP'],
+    ['verifyMobileOtpBtn', 'Verify OTP']
+  ].forEach(([id, text]) => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.disabled = false;
+      button.textContent = text;
+    }
+  });
+  setOtpStatus('emailOtpStatus', '');
+  setOtpStatus('mobileOtpStatus', '');
+}
+
+document.getElementById('sendEmailOtpBtn')?.addEventListener('click', sendRegistrationEmailOtp);
+document.getElementById('verifyEmailOtpBtn')?.addEventListener('click', verifyRegistrationEmailOtp);
+document.getElementById('sendMobileOtpBtn')?.addEventListener('click', sendRegistrationMobileOtp);
+document.getElementById('verifyMobileOtpBtn')?.addEventListener('click', verifyRegistrationMobileOtp);
+
+document.getElementById('registrationEmail')?.addEventListener('input', event => {
+  const email = event.currentTarget.value.trim().toLowerCase();
+  if (email !== registrationOtpState.verifiedEmail) {
+    registrationOtpState.emailVerified = false;
+    const row = document.getElementById('emailOtpRow');
+    const otpInput = document.getElementById('registrationEmailOtp');
+    const verifyButton = document.getElementById('verifyEmailOtpBtn');
+    if (row) row.hidden = true;
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.readOnly = false;
+    }
+    if (verifyButton) {
+      verifyButton.disabled = false;
+      verifyButton.textContent = 'Verify OTP';
+    }
+    setOtpStatus('emailOtpStatus', email ? 'Send and verify the OTP for this email address.' : '');
+  }
+});
+
+document.getElementById('registrationPhone')?.addEventListener('input', event => {
+  const mobile = event.currentTarget.value.replace(/\D/g, '');
+  if (mobile !== registrationOtpState.verifiedMobile) {
+    registrationOtpState.mobileVerified = false;
+    const row = document.getElementById('mobileOtpRow');
+    const otpInput = document.getElementById('registrationMobileOtp');
+    const verifyButton = document.getElementById('verifyMobileOtpBtn');
+    if (row) row.hidden = true;
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.readOnly = false;
+    }
+    if (verifyButton) {
+      verifyButton.disabled = false;
+      verifyButton.textContent = 'Verify OTP';
+    }
+    setOtpStatus('mobileOtpStatus', mobile ? 'Send and verify the OTP for this mobile number.' : '');
+  }
+});
+
+['registrationEmailOtp', 'registrationMobileOtp'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', event => {
+    event.currentTarget.value = event.currentTarget.value.replace(/\D/g, '').slice(0, 6);
+  });
+});
+
+/* ── Application form email and mobile OTP verification ── */
+const applicationOtpState = {
+  'pre-conference-competition': {
+    emailVerified: false,
+    mobileVerified: false,
+    verifiedEmail: '',
+    verifiedMobile: ''
+  },
+  'research-paper': {
+    emailVerified: false,
+    mobileVerified: false,
+    verifiedEmail: '',
+    verifiedMobile: ''
+  },
+  'award-nomination': {
+    emailVerified: false,
+    mobileVerified: false,
+    verifiedEmail: '',
+    verifiedMobile: ''
+  }
+};
+
+function getCurrentApplicationType() {
+  return document.getElementById('applicationType')?.value || 'pre-conference-competition';
+}
+
+function getCurrentApplicationOtpState() {
+  const type = getCurrentApplicationType();
+  return applicationOtpState[type] || applicationOtpState['pre-conference-competition'];
+}
+
+async function sendApplicationEmailOtp() {
+  const emailInput = document.getElementById('applicationEmail');
+  const button = document.getElementById('sendApplicationEmailOtpBtn');
+  const email = emailInput?.value.trim().toLowerCase() || '';
+
+  if (!emailInput?.checkValidity() || !email) {
+    emailInput?.reportValidity();
+    setOtpStatus('applicationEmailOtpStatus', 'Please enter a valid email address.', 'error');
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Sending...';
+  document.getElementById('applicationEmailOtpRow').hidden = false;
+  document.getElementById('applicationEmailOtp').value = '';
+  document.getElementById('applicationEmailOtp').readOnly = false;
+  setOtpStatus('applicationEmailOtpStatus', 'Sending OTP to your email...');
+
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.sendEmail, { email });
+    const state = getCurrentApplicationOtpState();
+    state.emailVerified = false;
+    state.verifiedEmail = '';
+    setOtpStatus('applicationEmailOtpStatus', 'OTP sent to your email address.', 'success');
+    startOtpCooldown(button);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Send OTP';
+    setOtpStatus('applicationEmailOtpStatus', error.message, 'error');
+  }
+}
+
+async function verifyApplicationEmailOtp() {
+  const email = document.getElementById('applicationEmail')?.value.trim().toLowerCase() || '';
+  const otpInput = document.getElementById('applicationEmailOtp');
+  const button = document.getElementById('verifyApplicationEmailOtpBtn');
+  const otp = otpInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{6}$/.test(otp)) {
+    setOtpStatus('applicationEmailOtpStatus', 'Enter the valid 6-digit email OTP.', 'error');
+    otpInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Verifying...';
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.verifyEmail, { email, otp });
+    const state = getCurrentApplicationOtpState();
+    state.emailVerified = true;
+    state.verifiedEmail = email;
+    otpInput.readOnly = true;
+    setOtpStatus('applicationEmailOtpStatus', 'Verified successfully.', 'success');
+    button.textContent = 'Verified';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Verify OTP';
+    setOtpStatus('applicationEmailOtpStatus', error.message, 'error');
+  }
+}
+
+async function sendApplicationMobileOtp() {
+  const mobileInput = document.getElementById('applicationMobile');
+  const button = document.getElementById('sendApplicationMobileOtpBtn');
+  const mobile = mobileInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{10}$/.test(mobile)) {
+    setOtpStatus('applicationMobileOtpStatus', 'Please enter a valid 10-digit mobile number.', 'error');
+    mobileInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Sending...';
+  document.getElementById('applicationMobileOtpRow').hidden = false;
+  document.getElementById('applicationMobileOtp').value = '';
+  document.getElementById('applicationMobileOtp').readOnly = false;
+  setOtpStatus('applicationMobileOtpStatus', 'Sending OTP to your mobile number...');
+
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.sendMobile, { mobile });
+    const state = getCurrentApplicationOtpState();
+    state.mobileVerified = false;
+    state.verifiedMobile = '';
+    setOtpStatus('applicationMobileOtpStatus', 'OTP sent to your mobile number.', 'success');
+    startOtpCooldown(button);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Send OTP';
+    setOtpStatus('applicationMobileOtpStatus', error.message, 'error');
+  }
+}
+
+async function verifyApplicationMobileOtp() {
+  const mobile = document.getElementById('applicationMobile')?.value.replace(/\D/g, '') || '';
+  const otpInput = document.getElementById('applicationMobileOtp');
+  const button = document.getElementById('verifyApplicationMobileOtpBtn');
+  const otp = otpInput?.value.replace(/\D/g, '') || '';
+
+  if (!/^\d{6}$/.test(otp)) {
+    setOtpStatus('applicationMobileOtpStatus', 'Enter the valid 6-digit mobile OTP.', 'error');
+    otpInput?.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Verifying...';
+  try {
+    await postOtpRequest(OTP_ENDPOINTS.verifyMobile, { mobile, otp });
+    const state = getCurrentApplicationOtpState();
+    state.mobileVerified = true;
+    state.verifiedMobile = mobile;
+    otpInput.readOnly = true;
+    setOtpStatus('applicationMobileOtpStatus', 'Verified successfully.', 'success');
+    button.textContent = 'Verified';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Verify OTP';
+    setOtpStatus('applicationMobileOtpStatus', error.message, 'error');
+  }
+}
+
+function resetApplicationOtpState() {
+  const type = getCurrentApplicationType();
+  const state = applicationOtpState[type];
+  if (state) {
+    state.emailVerified = false;
+    state.mobileVerified = false;
+    state.verifiedEmail = '';
+    state.verifiedMobile = '';
+  }
+
+  ['applicationEmailOtpRow', 'applicationMobileOtpRow'].forEach(id => {
+    const row = document.getElementById(id);
+    if (row) row.hidden = true;
+  });
+  ['applicationEmailOtp', 'applicationMobileOtp'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.value = '';
+      input.readOnly = false;
+    }
+  });
+  [
+    ['sendApplicationEmailOtpBtn', 'Send OTP'],
+    ['sendApplicationMobileOtpBtn', 'Send OTP'],
+    ['verifyApplicationEmailOtpBtn', 'Verify OTP'],
+    ['verifyApplicationMobileOtpBtn', 'Verify OTP']
+  ].forEach(([id, text]) => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.disabled = false;
+      button.textContent = text;
+    }
+  });
+  setOtpStatus('applicationEmailOtpStatus', '');
+  setOtpStatus('applicationMobileOtpStatus', '');
+}
+
+document.getElementById('sendApplicationEmailOtpBtn')?.addEventListener('click', sendApplicationEmailOtp);
+document.getElementById('verifyApplicationEmailOtpBtn')?.addEventListener('click', verifyApplicationEmailOtp);
+document.getElementById('sendApplicationMobileOtpBtn')?.addEventListener('click', sendApplicationMobileOtp);
+document.getElementById('verifyApplicationMobileOtpBtn')?.addEventListener('click', verifyApplicationMobileOtp);
+
+document.getElementById('applicationEmail')?.addEventListener('input', event => {
+  const email = event.currentTarget.value.trim().toLowerCase();
+  const state = getCurrentApplicationOtpState();
+  if (email !== state.verifiedEmail) {
+    state.emailVerified = false;
+    const row = document.getElementById('applicationEmailOtpRow');
+    const otpInput = document.getElementById('applicationEmailOtp');
+    const verifyButton = document.getElementById('verifyApplicationEmailOtpBtn');
+    if (row) row.hidden = true;
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.readOnly = false;
+    }
+    if (verifyButton) {
+      verifyButton.disabled = false;
+      verifyButton.textContent = 'Verify OTP';
+    }
+    setOtpStatus('applicationEmailOtpStatus', email ? 'Send and verify the OTP for this email address.' : '');
+  }
+});
+
+document.getElementById('applicationMobile')?.addEventListener('input', event => {
+  const mobile = event.currentTarget.value.replace(/\D/g, '');
+  const state = getCurrentApplicationOtpState();
+  if (mobile !== state.verifiedMobile) {
+    state.mobileVerified = false;
+    const row = document.getElementById('applicationMobileOtpRow');
+    const otpInput = document.getElementById('applicationMobileOtp');
+    const verifyButton = document.getElementById('verifyApplicationMobileOtpBtn');
+    if (row) row.hidden = true;
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.readOnly = false;
+    }
+    if (verifyButton) {
+      verifyButton.disabled = false;
+      verifyButton.textContent = 'Verify OTP';
+    }
+    setOtpStatus('applicationMobileOtpStatus', mobile ? 'Send and verify the OTP for this mobile number.' : '');
+  }
+});
+
+['applicationEmailOtp', 'applicationMobileOtp'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', event => {
+    event.currentTarget.value = event.currentTarget.value.replace(/\D/g, '').slice(0, 6);
+  });
+});
+
 /* ── Registration fee, QR amount, and manual UPI payment ── */
 
 const MYTH_UPI_PAYMENT = {
@@ -199,82 +700,14 @@ const SUCCESS_POPUP_DELAY_MS = 3000;
 const waitForSuccessPopup = () => new Promise(resolve => setTimeout(resolve, SUCCESS_POPUP_DELAY_MS));
 
 const REGISTRATION_FEES = {
-  'Student': 999,
-  'Delegate': 1999,
-  'Startup Founder': 1999,
-  'Industry Expert': 2499,
-  'Research Scholar': 2999,
-  'Online Attendee': 325,
-  'TSI Member': 500
+  'Student': 0,
+  'Delegate': 0,
+  'Startup Founder': 0,
+  'Industry Expert': 0,
+  'Research Scholar': 0,
+  'Online Attendee': 0,
+  'TSI Member': 0
 };
-
-const BULK_OFFERS = {
-  '1-4': { min: 1, max: 4, discount: 0, label: 'Student Group: 1 to 4 Students - Standard Fee ₹999 Each' },
-  '5-24': { min: 5, max: 24, discount: 10, label: 'Student Group: 5 to 24 Students - 10% Discount' },
-  '25-49': { min: 25, max: 49, discount: 20, label: 'Student Group: 25 to 49 Students - 20% Discount' },
-  '50-plus': { min: 50, max: Infinity, discount: 25, label: 'Student Group: 50+ Students - 25% Discount' }
-};
-
-function getBulkOfferKeyForCount(count) {
-  const value = Number(count || 0);
-  if (!Number.isInteger(value) || value < 1) return '';
-  if (value <= 4) return '1-4';
-  if (value <= 24) return '5-24';
-  if (value <= 49) return '25-49';
-  return '50-plus';
-}
-
-function normalizeStudentCountInput(input) {
-  if (!input) return 0;
-  const digitsOnly = String(input.value || '').replace(/\D/g, '').slice(0, 4);
-  if (input.value !== digitsOnly) input.value = digitsOnly;
-  return digitsOnly ? Number(digitsOnly) : 0;
-}
-
-function synchronizeBulkOfferWithStudentCount({ showError = false } = {}) {
-  const bulkOffer = document.getElementById('bulkOffer');
-  const studentCountInput = document.getElementById('studentCount');
-  const bulkCountHelp = document.getElementById('bulkCountHelp');
-  const count = normalizeStudentCountInput(studentCountInput);
-  const derivedKey = getBulkOfferKeyForCount(count);
-
-  if (derivedKey && bulkOffer) bulkOffer.value = derivedKey;
-
-  if (bulkCountHelp) {
-    if (!count) {
-      bulkCountHelp.textContent = 'Enter 1–4 for the standard fee of ₹999 per student, 5–24 for 10%, 25–49 for 20%, or 50+ for 25%. The offer changes automatically.';
-      bulkCountHelp.classList.remove('error');
-    } else if (!derivedKey) {
-      bulkCountHelp.textContent = 'Enter at least 1 student.';
-      bulkCountHelp.classList.add('error');
-    } else {
-      bulkCountHelp.textContent = `${BULK_OFFERS[derivedKey].label} selected automatically.`;
-      bulkCountHelp.classList.remove('error');
-    }
-  }
-
-  if (showError && !derivedKey) {
-    studentCountInput?.setCustomValidity('Please enter a whole number of at least 1 student.');
-    studentCountInput?.reportValidity();
-  } else {
-    studentCountInput?.setCustomValidity('');
-  }
-
-  return { count, offerKey: derivedKey };
-}
-
-const EARLY_BIRD_DISCOUNT_PERCENT = 10;
-
-function isEarlyBirdActive() {
-  const earlyBirdEndDate = new Date('2026-07-12T23:59:59+05:30');
-  return new Date() <= earlyBirdEndDate;
-}
-
-function applyEarlyBirdDiscount(amount, role = '') {
-  if (role === 'TSI Member') return Number(amount || 0);
-  if (!isEarlyBirdActive()) return Number(amount || 0);
-  return Math.round(Number(amount || 0) * (100 - EARLY_BIRD_DISCOUNT_PERCENT) / 100);
-}
 
 // Crowdshaki integration removed. The application now uses the MYTH UPI
 // merchant deep-link (buildMythUpiUrl) and QR generation for manual
@@ -468,62 +901,16 @@ function formatSponsorFee(amount) {
 
 function getRegistrationPaymentDetails() {
   const role = document.getElementById('registrationRole')?.value || 'Delegate';
-  const studentCountInput = document.getElementById('studentCount');
-  const studentCount = normalizeStudentCountInput(studentCountInput);
-  const derivedBulkOfferKey = getBulkOfferKeyForCount(studentCount);
-  const bulkOfferKey = derivedBulkOfferKey || document.getElementById('bulkOffer')?.value || '1-4';
-
-  if (role === 'Bulk Booking') {
-    const offer = BULK_OFFERS[bulkOfferKey] || BULK_OFFERS['1-4'];
-    const count = studentCount > 0 ? studentCount : offer.min;
-    const baseTotal = count * REGISTRATION_FEES.Student;
-    const discountAmount = Math.round(baseTotal * offer.discount / 100);
-    const payableAmount = baseTotal - discountAmount;
-
-    const bulkEarlyBirdActive = isEarlyBirdActive();
-    const bulkDiscountPercent = bulkEarlyBirdActive ? Math.max(offer.discount, EARLY_BIRD_DISCOUNT_PERCENT) : offer.discount;
-    const finalDiscountAmount = Math.round(baseTotal * bulkDiscountPercent / 100);
-    const finalPayableAmount = baseTotal - finalDiscountAmount;
-
-    return {
-      role,
-      feeAmount: finalPayableAmount,
-      discountPercent: bulkDiscountPercent,
-      bulkOfferKey,
-      bulkOffer: offer.label,
-      studentCount: count,
-      requiresPayment: finalPayableAmount > 0,
-      earlyBirdActive: bulkEarlyBirdActive,
-      note: `${offer.label}. ${count} students × ₹999. Early Bird 10% discount applies until July 12, 2026. Payable amount after discount: ${formatINR(finalPayableAmount)}.`
-    };
-  }
-
-  const baseFee = Number(REGISTRATION_FEES[role] ?? 1999);
-
-  // Online Attendee has a fixed fee and is not eligible for Early Bird discount.
-  const isOnlineAttendee = role === 'Online Attendee';
-  const isTSIMember = role === 'TSI Member';
-  const earlyBirdActive = (isOnlineAttendee || isTSIMember) ? false : isEarlyBirdActive();
-  const fee = (isOnlineAttendee || isTSIMember) ? baseFee : applyEarlyBirdDiscount(baseFee);
-  const discountPercent = (!isOnlineAttendee && !isTSIMember && earlyBirdActive && baseFee > 0)
-    ? EARLY_BIRD_DISCOUNT_PERCENT
-    : 0;
+  const baseFee = Number(REGISTRATION_FEES[role] ?? 0);
 
   return {
     role,
     baseFee,
-    feeAmount: fee,
-    discountPercent,
-    bulkOffer: '',
-    studentCount: '',
-    requiresPayment: fee > 0,
-    earlyBirdActive,
-    note: fee > 0
-      ? (isOnlineAttendee
-        ? `${role} registration fee: ${formatINR(baseFee)}. Early Bird offer is not applicable. Payable amount: ${formatINR(fee)}.`
-        : (earlyBirdActive
-          ? `${role} registration fee: ${formatINR(baseFee)}. Early Bird 10% discount applied until July 12. Payable amount: ${formatINR(fee)}.`
-          : `${role} registration fee: ${formatINR(baseFee)}. Early Bird offer ended after July 12, 2026; standard fee applies.`))
+    feeAmount: baseFee,
+    discountPercent: 0,
+    requiresPayment: baseFee > 0,
+    note: baseFee > 0
+      ? `${role} registration fee: ${formatINR(baseFee)}.`
       : `${role} registration - no fee required`
   };
 }
@@ -760,61 +1147,51 @@ function openManualUpiPayment() {
 }
 function updateRegistrationPaymentUI({ keepPayment = false } = {}) {
   const role = document.getElementById('registrationRole')?.value || 'Delegate';
-  const bulkBox = document.getElementById('bulkBookingBox');
-  const studentCount = document.getElementById('studentCount');
   const openUpiBtn = document.getElementById('openUpiBtn');
   const studentIdNotice = document.getElementById('studentIdNotice');
   const studentIdConfirmed = document.getElementById('studentIdConfirmed');
-  const isStudentRegistration = role === 'Student' || role === 'Bulk Booking';
+  const isStudentRegistration = role === 'Student';
 
-  if (bulkBox) bulkBox.hidden = role !== 'Bulk Booking';
-  if (studentCount) studentCount.required = role === 'Bulk Booking';
+  document.querySelector('#registrationRole option[value="Bulk Booking"]')?.remove();
+  document.getElementById('bulkBookingBox')?.remove();
+  document.getElementById('earlyBirdStatus')?.remove();
+
   if (studentIdNotice) studentIdNotice.hidden = !isStudentRegistration;
   if (studentIdConfirmed) {
     studentIdConfirmed.required = isStudentRegistration;
     if (!isStudentRegistration) studentIdConfirmed.checked = false;
   }
-
-
-  if (role === 'Bulk Booking') synchronizeBulkOfferWithStudentCount();
-
   const details = getRegistrationPaymentDetails();
 
   const feeAmount = document.getElementById('feeAmount');
   const discountPercent = document.getElementById('discountPercent');
-  const selectedFeeText = document.getElementById('selectedFeeText');
-  const selectedFeeNote = document.getElementById('selectedFeeNote');
-  const earlyBirdStatus = document.getElementById('earlyBirdStatus');
   const paymentQrText = document.getElementById('paymentQrText');
   const paymentQrImage = document.getElementById('paymentQrImage');
   const paymentQrBox = document.querySelector('.payment-qr-box');
+  const registrationInstructions = document.querySelector('#registrationForm .payment-instructions');
 
   if (feeAmount) feeAmount.value = details.feeAmount;
   if (discountPercent) discountPercent.value = details.discountPercent;
 
-  if (selectedFeeText) {
-    selectedFeeText.textContent = details.requiresPayment ? formatINR(details.feeAmount) : 'No Fee';
-  }
+  if (registrationInstructions && !details.requiresPayment) {
+    const instructionsTitle = registrationInstructions.querySelector('h3');
+    const instructionsList = registrationInstructions.querySelector('ol');
+    const instructionsAlert = registrationInstructions.querySelector('.payment-instructions-alert');
 
-  if (selectedFeeNote) {
-    selectedFeeNote.textContent = details.note;
-  }
+    if (instructionsTitle) instructionsTitle.textContent = 'Registration Instructions';
 
-  if (earlyBirdStatus) {
-    if (role === 'Bulk Booking') {
-      earlyBirdStatus.textContent = details.bulkOfferKey === '1-4'
-        ? 'Standard student fee applied: ₹999 per student for 1–4 students. No Early Bird discount is applied.'
-        : 'Student bulk-booking discount is available. Early Bird 10% discount applies until July 12, 2026.';
-      earlyBirdStatus.classList.remove('expired');
-    } else if (details.earlyBirdActive && details.requiresPayment) {
-      earlyBirdStatus.textContent = 'Early Bird offer active: 10% discount is automatically applied through July 12, 2026.';
-      earlyBirdStatus.classList.remove('expired');
-    } else if (details.requiresPayment) {
-      earlyBirdStatus.textContent = 'Standard registration fee applies after July 12, 2026.';
-      earlyBirdStatus.classList.add('expired');
-    } else {
-      earlyBirdStatus.textContent = '';
-      earlyBirdStatus.classList.remove('expired');
+    if (instructionsList) {
+      instructionsList.innerHTML = `
+        <li>Fill in all the required registration details.</li>
+        <li>Registration is <strong>free</strong> for Students, Delegates, Industry Experts, Startup Founders, Research Scholars, Online Attendees, and TSI Members.</li>
+        <li>No payment is required for participant registration.</li>
+        <li>Click <strong>Submit Registration</strong> to complete your registration.</li>
+        <li>Payment applies only to <strong>Sponsorship, Exhibitor, and Stall Booking</strong>.</li>
+      `;
+    }
+
+    if (instructionsAlert) {
+      instructionsAlert.innerHTML = '<strong>Important:</strong> Participant registration is free. Payment is applicable only for <strong>Sponsorship, Exhibitor, and Stall Booking</strong>.';
     }
   }
 
@@ -847,30 +1224,6 @@ function updateRegistrationPaymentUI({ keepPayment = false } = {}) {
 }
 
 document.getElementById('registrationRole')?.addEventListener('change', () => updateRegistrationPaymentUI());
-
-document.getElementById('studentCount')?.addEventListener('input', event => {
-  normalizeStudentCountInput(event.currentTarget);
-  synchronizeBulkOfferWithStudentCount();
-  updateRegistrationPaymentUI();
-});
-
-document.getElementById('studentCount')?.addEventListener('blur', () => {
-  synchronizeBulkOfferWithStudentCount({ showError: true });
-});
-
-document.getElementById('bulkOffer')?.addEventListener('change', event => {
-  const studentCountInput = document.getElementById('studentCount');
-  const count = normalizeStudentCountInput(studentCountInput);
-  const expectedKey = getBulkOfferKeyForCount(count);
-  if (expectedKey) {
-    event.currentTarget.value = expectedKey;
-  } else {
-    const selected = BULK_OFFERS[event.currentTarget.value];
-    if (selected && studentCountInput) studentCountInput.value = String(selected.min);
-  }
-  synchronizeBulkOfferWithStudentCount();
-  updateRegistrationPaymentUI();
-});
 
 ['name', 'fullName', 'participantName', 'email', 'emailAddress', 'phone', 'organization'].forEach(fieldName => {
   document.querySelector(`[name="${fieldName}"]`)?.addEventListener('input', () => {
@@ -1406,6 +1759,7 @@ function resetRegistrationFormState(form) {
     if (!field.readOnly) field.value = '';
   });
   form.querySelectorAll('.field-error').forEach(field => field.classList.remove('field-error'));
+  resetRegistrationOtpState();
   resetPaymentProof();
   updateRegistrationPaymentUI();
 }
@@ -1430,21 +1784,8 @@ document.getElementById('registrationForm')?.addEventListener('submit', async e 
   const form = e.currentTarget;
   const details = getRegistrationPaymentDetails();
 
-  if (details.role === 'Bulk Booking') {
-    const { count, offerKey } = synchronizeBulkOfferWithStudentCount({ showError: true });
-    if (!offerKey || !count) {
-      showMessage(
-        'registrationMessage',
-        'Please enter a whole-number student count of at least 1. Pricing is applied automatically: 1–4 = ₹999 per student, 5–24 = 10%, 25–49 = 20%, and 50+ = 25%.',
-        'error'
-      );
-      document.getElementById('studentCount')?.focus();
-      return;
-    }
-  }
-
   const studentIdConfirmed = document.getElementById('studentIdConfirmed');
-  if ((details.role === 'Student' || details.role === 'Bulk Booking') && !studentIdConfirmed?.checked) {
+  if (details.role === 'Student' && !studentIdConfirmed?.checked) {
     showMessage(
       'registrationMessage',
       'Please confirm that you will bring your original and currently valid student ID card for verification.',
@@ -1456,6 +1797,21 @@ document.getElementById('registrationForm')?.addEventListener('submit', async e 
   }
 
   if (!validatePhoneFields(form, 'registrationMessage')) return;
+
+  const currentEmail = document.getElementById('registrationEmail')?.value.trim().toLowerCase() || '';
+  const currentMobile = document.getElementById('registrationPhone')?.value.replace(/\D/g, '') || '';
+
+  if (!registrationOtpState.emailVerified || registrationOtpState.verifiedEmail !== currentEmail) {
+    showMessage('registrationMessage', 'Please send and verify the OTP for your email address.', 'error');
+    document.getElementById('registrationEmail')?.focus();
+    return;
+  }
+
+  if (!registrationOtpState.mobileVerified || registrationOtpState.verifiedMobile !== currentMobile) {
+    showMessage('registrationMessage', 'Please send and verify the OTP for your mobile number.', 'error');
+    document.getElementById('registrationPhone')?.focus();
+    return;
+  }
 
   const formData = new FormData(form);
   const normalizedFields = getNormalizedRegistrationFields(formData);
@@ -1493,10 +1849,12 @@ document.getElementById('registrationForm')?.addEventListener('submit', async e 
   formData.set('category', formData.get('category') || 'General');
   formData.set('feeAmount', String(details.feeAmount));
   formData.set('discountPercent', String(details.discountPercent));
-  formData.set('studentCount', String(details.studentCount || ''));
-  formData.set('bulkOffer', details.bulkOffer || '');
   formData.set('paymentConfirmed', details.requiresPayment ? 'payment-page-opened' : 'not-required');
   formData.set('paymentStatus', details.requiresPayment ? 'pending-verification' : 'not-required');
+  formData.set('emailVerified', 'true');
+  formData.set('mobileVerified', 'true');
+  formData.delete('emailOtp');
+  formData.delete('mobileOtp');
   
 
   const submitButton = form.querySelector('button[type="submit"]');
